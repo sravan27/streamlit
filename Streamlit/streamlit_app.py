@@ -9,7 +9,6 @@ from sklearn.metrics import mean_absolute_error, mean_absolute_percentage_error
 from sklearn.ensemble import RandomForestRegressor
 from xgboost import XGBRegressor
 import lightgbm as lgb
-from sklearn.svm import SVR
 
 # =========================
 # Data Loading and Preprocessing
@@ -25,11 +24,9 @@ def load_data():
         return data
     except FileNotFoundError:
         st.error("Dataset file not found. Please ensure the file is in the 'Dataset' folder.")
-        return pd.DataFrame()  # Return an empty DataFrame in case of error
+        return pd.DataFrame()
 
-@st.cache_data
 def load_and_prepare_data(df):
-    # Apply your team's feature engineering steps
     df = add_cyclic_features(df, 'hr', 24)
     df = add_cyclic_features(df, 'season', 4)
     df = temp_hum(df)
@@ -49,7 +46,7 @@ def add_cyclic_features(df, col_name, max_value):
     return df
 
 def temp_hum(df):
-    df['temp_hum'] = df['temp'] + df['hum']  
+    df['temp_hum'] = df['temp'] + df['hum']
     return df
 
 def temp_windspeed(df):
@@ -64,13 +61,13 @@ def add_daylight_period(df):
     def categorize_daylight(hour_sin, hour_cos):
         angle = np.arctan2(hour_sin, hour_cos)
         hour = (angle * 24 / (2 * np.pi)) % 24
-        if 5 <= hour < 12:  # Morning
+        if 5 <= hour < 12:
             return 'morning'
-        elif 12 <= hour < 17:  # Afternoon
+        elif 12 <= hour < 17:
             return 'afternoon'
-        elif 17 <= hour < 21:  # Evening
+        elif 17 <= hour < 21:
             return 'evening'
-        else:  # Night
+        else:
             return 'night'
     df['daylight_period'] = df.apply(lambda row: categorize_daylight(row['hr_sin'], row['hr_cos']), axis=1)
     return df
@@ -137,7 +134,6 @@ tabs = st.tabs(["ML Enthusiasts", "Business Users", "Model Comparison", "Real vs
 # ====================================
 # Tab 1: ML Enthusiasts
 # ====================================
-
 with tabs[0]:
     st.header("Hyperparameter Tuning & Model Training")
     model_name = st.selectbox("Choose Model", list(models.keys()))
@@ -160,44 +156,21 @@ with tabs[0]:
         max_depth = st.slider("Max Depth", -1, 20, -1)
         model.set_params(num_leaves=num_leaves, max_depth=max_depth)
 
-if st.button("Train Model"):
-    with st.spinner('Training in progress...'):
-        sleep(1)
-        model.fit(X_train, y_train)
-        y_train_pred = model.predict(X_train)
-        y_val_pred = model.predict(X_val)
+    if st.button("Train Model"):
+        with st.spinner('Training in progress...'):
+            sleep(1)
+            model.fit(X_train, y_train)
+            y_train_pred = model.predict(X_train)
+            y_val_pred = model.predict(X_val)
 
-        mae_train = mean_absolute_error(y_train, y_train_pred)
-        mape_train = mean_absolute_percentage_error(y_train, y_train_pred)
-        mae_val = mean_absolute_error(y_val, y_val_pred)
-        mape_val = mean_absolute_percentage_error(y_val, y_val_pred)
-
-        st.write(f"Training MAE: {mae_train:.2f}")
-        st.write(f"Training MAPE: {mape_train:.4f}")
-        st.write(f"Validation MAE: {mae_val:.2f}")
-        st.write(f"Validation MAPE: {mape_val:.4f}")
-
-        # Add visualization for model predictions
-        comparison_df = pd.DataFrame({
-            'Dataset': ['Train'] * len(y_train) + ['Validation'] * len(y_val),
-            'Real Values': np.concatenate([y_train, y_val]),
-            'Predicted Values': np.concatenate([y_train_pred, y_val_pred])
-        })
-
-        fig = px.scatter(
-            comparison_df,
-            x="Real Values",
-            y="Predicted Values",
-            color="Dataset",
-            title="Model Predictions: Real vs Predicted"
-        )
-        st.plotly_chart(fig)
-
+            st.write(f"Training MAE: {mean_absolute_error(y_train, y_train_pred):.2f}")
+            st.write(f"Training MAPE: {mean_absolute_percentage_error(y_train, y_train_pred):.4f}")
+            st.write(f"Validation MAE: {mean_absolute_error(y_val, y_val_pred):.2f}")
+            st.write(f"Validation MAPE: {mean_absolute_percentage_error(y_val, y_val_pred):.4f}")
 
 # ====================================
 # Tab 2: Business Users
 # ====================================
-
 with tabs[1]:
     st.header("Predict Bike Demand")
     date = st.date_input("Select Date")
@@ -211,83 +184,43 @@ with tabs[1]:
     hum = st.slider("Humidity (Normalized)", 0.0, 1.0, 0.5)
     windspeed = st.slider("Wind Speed (Normalized)", 0.0, 1.0, 0.5)
 
-    # Prepare features for prediction
-    date = pd.to_datetime(date)
-    yr = 1 if date.year == 2012 else 0
-    mnth = date.month
-    weekday = date.weekday()
+    if st.button("Get Prediction"):
+        # Prepare features for prediction
+        date = pd.to_datetime(date)
+        yr = 1 if date.year == 2012 else 0
+        mnth = date.month
+        weekday = date.weekday()
 
-    season_mapping = {"Winter":1, "Spring":2, "Summer":3, "Fall":4}
-    weather_mapping = {
-        "Clear/Partly Cloudy":1, 
-        "Mist/Cloudy":2, 
-        "Light Snow/Rain":3, 
-        "Heavy Rain/Snow":4
-    }
+        season_mapping = {"Winter": 1, "Spring": 2, "Summer": 3, "Fall": 4}
+        weather_mapping = {
+            "Clear/Partly Cloudy": 1,
+            "Mist/Cloudy": 2,
+            "Light Snow/Rain": 3,
+            "Heavy Rain/Snow": 4
+        }
 
-    features = pd.DataFrame({
-        'yr': [yr],
-        'mnth': [mnth],
-        'hr': [time],
-        'holiday': [1 if holiday == "Yes" else 0],
-        'weekday': [weekday],
-        'workingday': [1 if working_day == "Yes" else 0],
-        'weathersit': [weather_mapping[weather]],
-        'temp': [temp],
-        'hum': [hum],
-        'windspeed': [windspeed],
-        'season': [season_mapping[season]],
-        'dteday': [date]  # Include 'dteday' for consistency
-    })
+        features = pd.DataFrame({
+            'yr': [yr],
+            'mnth': [mnth],
+            'hr': [time],
+            'holiday': [holiday],
+            'weekday': [weekday],
+            'workingday': [working_day],
+            'weathersit': [weather_mapping[weather]],
+            'temp': [temp],
+            'hum': [hum],
+            'windspeed': [windspeed],
+            'season': [season_mapping[season]],
+            'dteday': [date]
+        })
 
-    # Apply the same feature engineering steps
-    features = load_and_prepare_data(features)
+        features = load_and_prepare_data(features)
+        features_aligned = align_features(features, X_train)
 
-    # Align features
-    features_aligned = align_features(features, X_train)
-    features_aligned = features_aligned[X_train.columns]
-
- if st.button("Get Prediction"):
-    # Prepare features for prediction
-    date = pd.to_datetime(date)
-    yr = 1 if date.year == 2012 else 0
-    mnth = date.month
-    weekday = date.weekday()
-
-    season_mapping = {"Winter": 1, "Spring": 2, "Summer": 3, "Fall": 4}
-    weather_mapping = {
-        "Clear/Partly Cloudy": 1,
-        "Mist/Cloudy": 2,
-        "Light Snow/Rain": 3,
-        "Heavy Rain/Snow": 4
-    }
-
-    features = pd.DataFrame({
-        'yr': [yr],
-        'mnth': [mnth],
-        'hr': [time],
-        'holiday': [holiday],
-        'weekday': [weekday],
-        'workingday': [working_day],
-        'weathersit': [weather_mapping[weather]],
-        'temp': [temp],
-        'hum': [hum],
-        'windspeed': [windspeed],
-        'season': [season_mapping[season]],
-        'dteday': [date]
-    })
-
-    # Apply the same feature engineering steps
-    features = load_and_prepare_data(features)
-    features_aligned = align_features(features, X_train)
-
-    # Predict using the best model (assuming Random Forest for this example)
-    best_model_name = "Random Forest"
-    best_model = models[best_model_name]
-    best_model.fit(X_train, y_train)
-    prediction = best_model.predict(features_aligned)
-    st.write(f"Predicted Bike Demand: {prediction[0]:.0f} bikes")
-
+        best_model = models["Random Forest"]
+        best_model.fit(X_train, y_train)
+        prediction = best_model.predict(features_aligned)
+        st.write(f"Predicted Bike Demand: {prediction[0]:.0f} bikes")
 
 # ====================================
 # Tab 3: Model Comparison
@@ -302,40 +235,34 @@ with tabs[2]:
         mae_val = mean_absolute_error(y_val, y_val_pred)
         mae_test = mean_absolute_error(y_test, y_test_pred)
         mape_val = mean_absolute_percentage_error(y_val, y_val_pred)
-        metrics.append({"Model": name, "Validation MAE": mae_val, "Test MAE": mae_test, "Validation MAPE": mape_val})
+        mape_test = mean_absolute_percentage_error(y_test, y_test_pred)
+        metrics.append({"Model": name, "Validation MAE": mae_val, "Test MAE": mae_test, "Validation MAPE": mape_val, "Test MAPE": mape_test})
 
     metrics_df = pd.DataFrame(metrics)
     st.dataframe(metrics_df)
 
-    # Visualization for MAE
     fig = px.bar(metrics_df, x="Model", y=["Validation MAE", "Test MAE"], barmode="group",
-                 title="Model Comparison by MAE")
-    st.plotly_chart(fig)
-
+                 title="Model Comparison by MAE", labels={"value": "MAE", "variable": "Dataset"})
+    st.plotly_chart(fig, key="model_comparison_chart")
 
 # ====================================
 # Tab 4: Real vs Predicted
 # ====================================
-
 with tabs[3]:
     st.header("Real vs Predicted Values")
-    best_model_name = "Random Forest"
-    model = models[best_model_name]
-    model.fit(X_train, y_train)
-    y_test_pred = model.predict(X_test)
+    best_model = models["Random Forest"]
+    best_model.fit(X_train, y_train)
+    y_test_pred = best_model.predict(X_test)
 
-    # Create DataFrame for real vs predicted values
     comparison_df = pd.DataFrame({
         'Date': data.loc[y_test.index, 'dteday'],
         'Real Values': y_test,
         'Predicted Values': y_test_pred
     })
 
-    # Aggregate daily data
     comparison_df['Date'] = pd.to_datetime(comparison_df['Date'])
     comparison_df = comparison_df.groupby('Date').mean().reset_index()
 
-    # Interactive plot using Plotly
     comparison_fig = px.line(
         comparison_df,
         x='Date',
@@ -343,43 +270,25 @@ with tabs[3]:
         title="Comparison of Real vs Predicted Bike Demand",
         labels={'value': 'Bike Demand', 'variable': 'Legend'}
     )
-    comparison_fig.update_layout(
-        xaxis_title="Date",
-        yaxis_title="Bike Demand",
-        legend_title="Legend",
-        width=1000,
-        height=500
-    )
-    st.plotly_chart(comparison_fig, key='comparison_fig')  # Added key
+    st.plotly_chart(comparison_fig, key="real_vs_predicted")
 
-    # Option to select date range
     st.subheader("Select Date Range for Visualization")
     min_date = comparison_df['Date'].min().date()
     max_date = comparison_df['Date'].max().date()
     start_date = st.date_input("Start Date", min_value=min_date, max_value=max_date, value=min_date)
     end_date = st.date_input("End Date", min_value=min_date, max_value=max_date, value=max_date)
 
-    # Filter data based on date range
     mask = (comparison_df['Date'] >= pd.to_datetime(start_date)) & (comparison_df['Date'] <= pd.to_datetime(end_date))
     filtered_df = comparison_df.loc[mask]
 
-    # Update plot with filtered data
     filtered_fig = px.line(
         filtered_df,
         x='Date',
         y=['Real Values', 'Predicted Values'],
-        title="Comparison of Real vs Predicted Bike Demand",
+        title="Filtered Comparison of Real vs Predicted Bike Demand",
         labels={'value': 'Bike Demand', 'variable': 'Legend'}
     )
-    filtered_fig.update_layout(
-        xaxis_title="Date",
-        yaxis_title="Bike Demand",
-        legend_title="Legend",
-        width=1000,
-        height=500
-    )
-    st.plotly_chart(filtered_fig, key='filtered_fig')  # Added key
-
+    st.plotly_chart(filtered_fig, key="filtered_real_vs_predicted")
 
 # =========================
 # Run the app using: streamlit run streamlit_app.py
