@@ -159,6 +159,7 @@ with tabs[0]:
         num_leaves = st.slider("Number of Leaves", 10, 100, 31, step=5)
         max_depth = st.slider("Max Depth", -1, 20, -1)
         model.set_params(num_leaves=num_leaves, max_depth=max_depth)
+
 if st.button("Train Model"):
     with st.spinner('Training in progress...'):
         sleep(1)
