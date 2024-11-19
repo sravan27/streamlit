@@ -22,8 +22,8 @@ from time import sleep
 
 @st.cache_data
 def load_data():
-    #file_path = '../Dataset/bike-sharing-hourly.csv'  # Adjust the file path if necessary
-    file_path = 'Dataset/bike-sharing-hourly.csv'
+    #file_path = '../Dataset/bike-sharing-hourly.csv'  # for local deployment
+    file_path = 'Dataset/bike-sharing-hourly.csv' #for github deployment
     try:
         data_raw = pd.read_csv(file_path)
         data_raw['dteday'] = pd.to_datetime(data_raw['dteday'])
@@ -145,12 +145,12 @@ st.title("Washington DC Bike Sharing Service Analysis and Business Development")
 tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
     "Data Quality and Exploration",
     "Data Visualization",
+    "Business Insights",
     "Feature Engineering",
     "ML Enthusiasts",
     "Business Users",
     "Model Comparison",
-    "Real vs Predicted",
-    "Business Insights"
+    "Real vs Predicted"
 ])
 
 # ====================================
@@ -553,9 +553,67 @@ with tab2:
     st.plotly_chart(fig_casual)
 
 # ====================================
-# Tab 3: Feature Engineering
+# Tab 3: Business Insights
 # ====================================
 with tab3:
+    # Section: Revenues
+    st.header("Revenues")
+    
+    # Subsection: Registered Users
+    st.subheader("Registered Users: Focus on Volume")
+    st.markdown("""
+    #### Why are registered users price-elastic?
+    - Registered users are **price-sensitive** and more informed about available alternatives.
+    - They are regular users who:
+        - Have more time to evaluate prices.
+        - Plan their purchases.
+    
+    #### **Volume Drivers**:
+    - **Frequency**: Encourage frequent usage by offering 20 free minutes for sign-up, with additional rewards for extended usage.
+    - **Conversion**: Convert casual users to registered users by rewarding them with free minutes for referrals.
+    - **Minutes Per Ride**: 
+        - Encourage frequent longer trips to drive overall revenues.
+        - Reduce prices per minute after surpassing a specific ride duration to incentivize extended usage.
+    """)
+    
+    # Subsection: Casual Users
+    st.subheader("Casual Users: Focus on Price")
+    st.markdown("""
+    #### Why are casual users price inelastic?
+    - Casual users are **not price-sensitive** and less informed about pricing.
+    - They are not fully aware of available substitutes, and bike use constitutes only a small portion of their overall trip.
+    
+    #### **Price Drivers**:
+    - **Demand**: Adjust prices based on demand and time of use.
+        - **Dynamic Pricing**: Higher prices during peak times like weekends, holidays, and good weather.
+        - Increased pricing during peak hours (10 AM–6 PM).
+    
+    #### So how can we push usage despite a dynamic pricing strategy?
+    #### **Volume Drivers**:
+    - **Partnerships**:
+        - Collaborate with hotels, tourism agencies, and local attractions.
+    - **Marketing**:
+        - Use an omnichannel approach (app promotions, billboards, local ads).
+    - **Infrastructure**:
+        - Expand stations and slots in high-demand areas for casual users.
+    """)
+    
+    # Section: Costs
+    st.header("Costs: Reduce Variable Costs - Maintenance & Transport")
+    st.markdown("""
+    #### **Winter/Bad Weather**:
+    - Reduce bike availability by **40%** to lower maintenance and transport costs.
+    - Store bikes during low-demand periods.
+    
+    #### **Relocation and Redistribution**:
+    - Establish **long-term contracts** with trucks for efficient redistribution.
+    - Implement **centralized storage solutions** to minimize costs.
+    """)
+
+# ====================================
+# Tab 4: Feature Engineering
+# ====================================
+with tab4:
     # Section 3: Feature Handling and Engineering
     st.header("3. Feature Engineering")
     st.write("Exploring new features and preprocessing techniques to capture nuanced patterns in the data.")
@@ -683,9 +741,9 @@ with tab3:
     st.pyplot(fig)
 
 # ====================================
-# Tab 4: ML Enthusiasts
+# Tab 5: ML Enthusiasts
 # ====================================
-with tab4:
+with tab5:
     st.header("Hyperparameter Tuning & Model Training")
     model_name = st.selectbox("Choose Model", list(models.keys()))
     model = models[model_name]
@@ -713,16 +771,19 @@ with tab4:
             model.fit(X_train, y_train)
             y_train_pred = model.predict(X_train)
             y_val_pred = model.predict(X_val)
+            y_test_pred = model.predict(X_test)
     
             st.write(f"Training MAE: {mean_absolute_error(y_train, y_train_pred):.2f}")
             st.write(f"Training MAPE: {mean_absolute_percentage_error(y_train, y_train_pred):.4f}")
             st.write(f"Validation MAE: {mean_absolute_error(y_val, y_val_pred):.2f}")
             st.write(f"Validation MAPE: {mean_absolute_percentage_error(y_val, y_val_pred):.4f}")
+            st.write(f"Test MAE: {mean_absolute_error(y_test, y_test_pred):.2f}")
+            st.write(f"Test MAPE: {mean_absolute_percentage_error(y_test, y_test_pred):.4f}")
 
 # ====================================
-# Tab 5: Business Users
+# Tab 6: Business Users
 # ====================================
-with tab5:
+with tab6:
     st.header("Predict Bike Demand")
     date = st.date_input("Select Date")
     time = st.slider("Select Hour of the Day", 0, 23, 12)
@@ -774,9 +835,9 @@ with tab5:
         st.write(f"Predicted Bike Demand: {prediction[0]:.0f} bikes")
 
 # ====================================
-# Tab 6: Model Comparison
+# Tab 7: Model Comparison
 # ====================================
-with tab6:
+with tab7:
     st.header("Compare Model Performance")
     metrics = []
     for name, model in models.items():
@@ -787,7 +848,13 @@ with tab6:
         mae_test = mean_absolute_error(y_test, y_test_pred)
         mape_val = mean_absolute_percentage_error(y_val, y_val_pred)
         mape_test = mean_absolute_percentage_error(y_test, y_test_pred)
-        metrics.append({"Model": name, "Validation MAE": mae_val, "Test MAE": mae_test, "Validation MAPE": mape_val, "Test MAPE": mape_test})
+        metrics.append({
+            "Model": name, 
+            "Validation MAE": mae_val, 
+            "Test MAE": mae_test, 
+            "Validation MAPE": mape_val, 
+            "Test MAPE": mape_test
+        })
     
     metrics_df = pd.DataFrame(metrics)
     st.dataframe(metrics_df)
@@ -795,11 +862,15 @@ with tab6:
     fig = px.bar(metrics_df, x="Model", y=["Validation MAE", "Test MAE"], barmode="group",
                  title="Model Comparison by MAE", labels={"value": "MAE", "variable": "Dataset"})
     st.plotly_chart(fig, key="model_comparison_chart")
+    
+    fig_mape = px.bar(metrics_df, x="Model", y=["Validation MAPE", "Test MAPE"], barmode="group",
+                 title="Model Comparison by MAPE", labels={"value": "MAPE", "variable": "Dataset"})
+    st.plotly_chart(fig_mape, key="model_comparison_chart_mape")
 
 # ====================================
-# Tab 7: Real vs Predicted
+# Tab 8: Real vs Predicted
 # ====================================
-with tab7:
+with tab8:
     st.header("Real vs Predicted Values")
     best_model = models["Random Forest"]
     best_model.fit(X_train, y_train)
@@ -840,61 +911,3 @@ with tab7:
         labels={'value': 'Bike Demand', 'variable': 'Legend'}
     )
     st.plotly_chart(filtered_fig, key="filtered_real_vs_predicted")
-
-# ====================================
-# Tab 8: Business Insights
-# ====================================
-with tab8:
-    # Section: Revenues
-    st.header("Revenues")
-    
-    # Subsection: Registered Users
-    st.subheader("Registered Users: Focus on Volume")
-    st.markdown("""
-    #### Why are registered users price-elastic?
-    - Registered users are **price-sensitive** and more informed about available alternatives.
-    - They are regular users who:
-        - Have more time to evaluate prices.
-        - Plan their purchases.
-    
-    #### **Volume Drivers**:
-    - **Frequency**: Encourage frequent usage by offering 20 free minutes for sign-up, with additional rewards for extended usage.
-    - **Conversion**: Convert casual users to registered users by rewarding them with free minutes for referrals.
-    - **Minutes Per Ride**: 
-        - Encourage frequent longer trips to drive overall revenues.
-        - Reduce prices per minute after surpassing a specific ride duration to incentivize extended usage.
-    """)
-    
-    # Subsection: Casual Users
-    st.subheader("Casual Users: Focus on Price")
-    st.markdown("""
-    #### Why are casual users price inelastic?
-    - Casual users are **not price-sensitive** and less informed about pricing.
-    - They are not fully aware of available substitutes, and bike use constitutes only a small portion of their overall trip.
-    
-    #### **Price Drivers**:
-    - **Demand**: Adjust prices based on demand and time of use.
-        - **Dynamic Pricing**: Higher prices during peak times like weekends, holidays, and good weather.
-        - Increased pricing during peak hours (10 AM–6 PM).
-    
-    #### So how can we push usage despite a dynamic pricing strategy?
-    #### **Volume Drivers**:
-    - **Partnerships**:
-        - Collaborate with hotels, tourism agencies, and local attractions.
-    - **Marketing**:
-        - Use an omnichannel approach (app promotions, billboards, local ads).
-    - **Infrastructure**:
-        - Expand stations and slots in high-demand areas for casual users.
-    """)
-    
-    # Section: Costs
-    st.header("Costs: Reduce Variable Costs - Maintenance & Transport")
-    st.markdown("""
-    #### **Winter/Bad Weather**:
-    - Reduce bike availability by **40%** to lower maintenance and transport costs.
-    - Store bikes during low-demand periods.
-    
-    #### **Relocation and Redistribution**:
-    - Establish **long-term contracts** with trucks for efficient redistribution.
-    - Implement **centralized storage solutions** to minimize costs.
-    """)
