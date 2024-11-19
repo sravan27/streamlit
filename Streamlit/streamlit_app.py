@@ -17,36 +17,29 @@ from sklearn.svm import SVR
 
 @st.cache_data
 def load_data():
-    file_path = '../Dataset/bike-sharing-hourly.csv'
-    data = pd.read_csv(file_path)
-    data['dteday'] = pd.to_datetime(data['dteday'])
-    data = load_and_prepare_data(data)
-    return data
+    file_path = 'Dataset/bike-sharing-hourly.csv'
+    try:
+        data = pd.read_csv(file_path)
+        data['dteday'] = pd.to_datetime(data['dteday'])
+        data = load_and_prepare_data(data)
+        return data
+    except FileNotFoundError:
+        st.error("Dataset file not found. Please ensure the file is in the 'Dataset' folder.")
+        return pd.DataFrame()  # Return an empty DataFrame in case of error
 
+@st.cache_data
 def load_and_prepare_data(df):
     # Apply your team's feature engineering steps
-    # 1. Add cyclical features
     df = add_cyclic_features(df, 'hr', 24)
     df = add_cyclic_features(df, 'season', 4)
-    
-    # 2. Add interaction terms
     df = temp_hum(df)
     df = temp_windspeed(df)
     df = hum_windspeed(df)
-    
-    # 3. Add daylight period
     df = add_daylight_period(df)
-    
-    # 4. One-hot encode 'daylight_period'
     df = one_hot_encode_column_single(df, 'daylight_period')
-    
-    # Drop unnecessary columns (do not drop 'dteday')
     unnecessary_columns = ['instant', 'casual', 'registered', 'atemp']
     df = df.drop(columns=unnecessary_columns, errors='ignore')
-    
     return df
-
-# Feature Engineering Functions from Your Team's Scripts
 
 def add_cyclic_features(df, col_name, max_value):
     df[col_name] = df[col_name].astype('int')
@@ -91,7 +84,6 @@ def one_hot_encode_column_single(df, column_name):
     df_encoded = pd.concat([df.drop(columns=[column_name]), encoded_df], axis=1)
     return df_encoded
 
-# Ensure feature columns match model expectations
 def align_features(X, reference_X):
     X = X.copy()
     missing_cols = set(reference_X.columns) - set(X.columns)
@@ -102,35 +94,30 @@ def align_features(X, reference_X):
         X = X.drop(columns=extra_cols)
     return X[reference_X.columns]
 
-# Split Data Function
 def split_data(df, target_column='cnt', test_year=1, test_month_start=11, val_ratio=0.2):
     y = df[target_column]
-    X = df.drop(columns=[target_column, 'dteday'])  # Drop 'dteday' from features
-    
+    X = df.drop(columns=[target_column, 'dteday'])
     df_test = df[(df['yr'] == test_year) & (df['mnth'] >= test_month_start)]
     df_train = df.drop(df_test.index)
-    
     X_train = df_train.drop(columns=[target_column, 'dteday'], errors='ignore')
     y_train = df_train[target_column]
-    
     X_test = df_test.drop(columns=[target_column, 'dteday'], errors='ignore')
     y_test = df_test[target_column]
-    
     train_size = int(len(X_train) * (1 - val_ratio))
     X_train_final = X_train.iloc[:train_size]
     X_val = X_train.iloc[train_size:]
     y_train_final = y_train.iloc[:train_size]
     y_val = y_train.iloc[train_size:]
-    
-    # Align features
     X_train_aligned = align_features(X_train_final, X_train_final)
     X_val_aligned = align_features(X_val, X_train_final)
     X_test_aligned = align_features(X_test, X_train_final)
-    
     return X_train_aligned, X_val_aligned, X_test_aligned, y_train_final, y_val, y_test
 
-# Load Data and Models
+# Load Data
 data = load_data()
+if data.empty:
+    st.stop()
+
 X_train, X_val, X_test, y_train, y_val, y_test = split_data(data)
 
 # Models dictionary
