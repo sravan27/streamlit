@@ -159,24 +159,39 @@ with tabs[0]:
         num_leaves = st.slider("Number of Leaves", 10, 100, 31, step=5)
         max_depth = st.slider("Max Depth", -1, 20, -1)
         model.set_params(num_leaves=num_leaves, max_depth=max_depth)
+if st.button("Train Model"):
+    with st.spinner('Training in progress...'):
+        sleep(1)
+        model.fit(X_train, y_train)
+        y_train_pred = model.predict(X_train)
+        y_val_pred = model.predict(X_val)
 
-    # Train model and display performance when button is clicked
-    if st.button("Train Model"):
-        with st.spinner('Training in progress...'):
-            sleep(1)
-            model.fit(X_train, y_train)
-            y_train_pred = model.predict(X_train)
-            y_val_pred = model.predict(X_val)
+        mae_train = mean_absolute_error(y_train, y_train_pred)
+        mape_train = mean_absolute_percentage_error(y_train, y_train_pred)
+        mae_val = mean_absolute_error(y_val, y_val_pred)
+        mape_val = mean_absolute_percentage_error(y_val, y_val_pred)
 
-            mae_train = mean_absolute_error(y_train, y_train_pred)
-            mape_train = mean_absolute_percentage_error(y_train, y_train_pred)
-            mae_val = mean_absolute_error(y_val, y_val_pred)
-            mape_val = mean_absolute_percentage_error(y_val, y_val_pred)
+        st.write(f"Training MAE: {mae_train:.2f}")
+        st.write(f"Training MAPE: {mape_train:.4f}")
+        st.write(f"Validation MAE: {mae_val:.2f}")
+        st.write(f"Validation MAPE: {mape_val:.4f}")
 
-            st.write(f"Training MAE: {mae_train:.2f}")
-            st.write(f"Training MAPE: {mape_train:.4f}")
-            st.write(f"Validation MAE: {mae_val:.2f}")
-            st.write(f"Validation MAPE: {mape_val:.4f}")
+        # Add visualization for model predictions
+        comparison_df = pd.DataFrame({
+            'Dataset': ['Train'] * len(y_train) + ['Validation'] * len(y_val),
+            'Real Values': np.concatenate([y_train, y_val]),
+            'Predicted Values': np.concatenate([y_train_pred, y_val_pred])
+        })
+
+        fig = px.scatter(
+            comparison_df,
+            x="Real Values",
+            y="Predicted Values",
+            color="Dataset",
+            title="Model Predictions: Real vs Predicted"
+        )
+        st.plotly_chart(fig)
+
 
 # ====================================
 # Tab 2: Business Users
@@ -187,8 +202,9 @@ with tabs[1]:
     date = st.date_input("Select Date")
     time = st.slider("Select Hour of the Day", 0, 23, 12)
     season = st.selectbox("Season", ["Winter", "Spring", "Summer", "Fall"])
-    holiday = st.radio("Holiday", ["No", "Yes"])
-    working_day = st.radio("Working Day", ["No", "Yes"])
+    day_type = st.radio("Day Type", ["Holiday", "Working Day"])
+    holiday = 1 if day_type == "Holiday" else 0
+    working_day = 1 if day_type == "Working Day" else 0
     weather = st.selectbox("Weather Condition", ["Clear/Partly Cloudy", "Mist/Cloudy", "Light Snow/Rain", "Heavy Rain/Snow"])
     temp = st.slider("Temperature (Normalized)", 0.0, 1.0, 0.5)
     hum = st.slider("Humidity (Normalized)", 0.0, 1.0, 0.5)
@@ -230,6 +246,40 @@ with tabs[1]:
     features_aligned = align_features(features, X_train)
     features_aligned = features_aligned[X_train.columns]
 
+ if st.button("Get Prediction"):
+    # Prepare features for prediction
+    date = pd.to_datetime(date)
+    yr = 1 if date.year == 2012 else 0
+    mnth = date.month
+    weekday = date.weekday()
+
+    season_mapping = {"Winter": 1, "Spring": 2, "Summer": 3, "Fall": 4}
+    weather_mapping = {
+        "Clear/Partly Cloudy": 1,
+        "Mist/Cloudy": 2,
+        "Light Snow/Rain": 3,
+        "Heavy Rain/Snow": 4
+    }
+
+    features = pd.DataFrame({
+        'yr': [yr],
+        'mnth': [mnth],
+        'hr': [time],
+        'holiday': [holiday],
+        'weekday': [weekday],
+        'workingday': [working_day],
+        'weathersit': [weather_mapping[weather]],
+        'temp': [temp],
+        'hum': [hum],
+        'windspeed': [windspeed],
+        'season': [season_mapping[season]],
+        'dteday': [date]
+    })
+
+    # Apply the same feature engineering steps
+    features = load_and_prepare_data(features)
+    features_aligned = align_features(features, X_train)
+
     # Predict using the best model (assuming Random Forest for this example)
     best_model_name = "Random Forest"
     best_model = models[best_model_name]
@@ -237,26 +287,30 @@ with tabs[1]:
     prediction = best_model.predict(features_aligned)
     st.write(f"Predicted Bike Demand: {prediction[0]:.0f} bikes")
 
+
 # ====================================
 # Tab 3: Model Comparison
 # ====================================
-
 with tabs[2]:
     st.header("Compare Model Performance")
     metrics = []
     for name, model in models.items():
         model.fit(X_train, y_train)
         y_val_pred = model.predict(X_val)
+        y_test_pred = model.predict(X_test)
         mae_val = mean_absolute_error(y_val, y_val_pred)
+        mae_test = mean_absolute_error(y_test, y_test_pred)
         mape_val = mean_absolute_percentage_error(y_val, y_val_pred)
-        metrics.append({"Model": name, "Validation MAE": mae_val, "Validation MAPE": mape_val})
+        metrics.append({"Model": name, "Validation MAE": mae_val, "Test MAE": mae_test, "Validation MAPE": mape_val})
 
     metrics_df = pd.DataFrame(metrics)
     st.dataframe(metrics_df)
 
-    # Visualization
-    fig = px.bar(metrics_df, x="Model", y="Validation MAE", title="Model Comparison by Validation MAE")
+    # Visualization for MAE
+    fig = px.bar(metrics_df, x="Model", y=["Validation MAE", "Test MAE"], barmode="group",
+                 title="Model Comparison by MAE")
     st.plotly_chart(fig)
+
 
 # ====================================
 # Tab 4: Real vs Predicted
